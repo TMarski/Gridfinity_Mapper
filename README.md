@@ -26,5 +26,11 @@ You can learn more about the Gridfinity specification at <a href="https://gridfi
 <img src="https://raw.githubusercontent.com/TMarski/Gridfinity_Mapper/refs/heads/main/assets/Gridfinity_mapper_bin_json.png" width=25% height=25%>
 
 
+# Quick Start Guide
+- First, define a Drawer by setting the Drawer name and size, then click on Add Drawer.
+- Next you'll create your first bin. Click anywhere on the grid to set the location of the upper left corner of the bin. Optionally label the bin.
+- With a bin selected, you can use the menu on the right side of the screen to set the bin's color, add notes, create custom JSON attributes, or resize it. Make sure to click Save.
+- You can also move or duplicate the bin to the Holding Area. The Holding Area is a list of bins which are not assigned to any drawer. This is useful for moving a bin between drawers, or for making space if you have a gridlock situation while organizing a full drawer.
+- When you're done, you can use the menu on the left hand side to Import or Export a JSON file.
 
 
