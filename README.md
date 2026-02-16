@@ -34,3 +34,12 @@ You can learn more about the Gridfinity specification at <a href="https://gridfi
 - When you're done, you can use the menu on the left hand side to Import or Export a JSON file.
 
 
+
+# Real World Results
+Now I'm able to keep all of my hardware, electronic components, and small parts perfectly organized, and whenever I need to place new items into a drawer, it's as easy as dragging and dropping.
+
+<img src="https://github.com/TMarski/Gridfinity_Mapper/blob/main/assets/gridfinity_m5_drawer.jpeg" width=50% height=50%>
+
+<img src="https://raw.githubusercontent.com/TMarski/Gridfinity_Mapper/refs/heads/main/assets/gridfinity_electrical_connectors_drawer.jpeg" width=50% height=50%>
+
+
