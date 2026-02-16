@@ -1,7 +1,9 @@
 # Gridfinity_Mapper
 A vibe-coded drag-and-drop graphical HTML web app for planning and tracking Gridfinity drawer layouts, because I needed a flexible way of tracking my Gridfinity hardware drawers. 
+It's just HTML, so you can <a href="https://html-preview.github.io/?url=https://github.com/TMarski/Gridfinity_Mapper/blob/main/Gridfinity_Mapper.html">try it out live in your browser!</a>
 
 For those unaware, Gridfinity, described as "the modular, open-source grid storage system", is a whole storage ecosystem which uses 3D printed bins to store items on grid of 42mm cells. It has totally transformed my garage.
+You can learn more about the Gridfinity specification at <a href="https://gridfinity.xyz/">Gridfinity.xyz</a>.
 
 
 # Features
