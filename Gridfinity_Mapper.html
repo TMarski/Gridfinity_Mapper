@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Gridfinity Drawer Mapper</title>
+  <style>
+    :root {
+      --cell-size: 40px;
+      --grid-bg: #f8f8f8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      color: #222;
+      height: 100vh;
+      display: flex;
+    }
+
+    #app {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    aside {
+      border-right: 1px solid #ccc;
+      padding: 8px;
+      overflow-y: auto;
+    }
+
+    #drawer-sidebar {
+      width: 260px;
+      transition: width 0.2s ease, padding 0.2s ease;
+      position: relative;
+    }
+
+    #drawer-toggle-bar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 4px;
+    }
+
+    #drawer-toggle-btn {
+      padding: 2px 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    #drawer-sidebar.collapsed {
+      width: 24px;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+
+    #drawer-sidebar.collapsed #drawer-sidebar-content {
+      display: none;
+    }
+
+    #right-sidebar {
+      width: 340px;
+      border-right: none;
+      border-left: 1px solid #ccc;
+    }
+
+    #main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #grid-wrapper {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #eee;
+      padding: 10px;
+      touch-action: none; /* custom pinch/pan/tap */
+    }
+
+    #grid-container {
+      position: relative;
+      background-color: var(--grid-bg);
+      background-image:
+        linear-gradient(#ccc 1px, transparent 1px),
+        linear-gradient(90deg, #ccc 1px, transparent 1px);
+      background-size: var(--cell-size) var(--cell-size);
+      border: 1px solid #999;
+    }
+
+    .bin {
+      position: absolute;
+      border: 1px solid #000;
+      cursor: grab;
+      user-select: none;
+      overflow: hidden; /* ensure text never bleeds outside the bin */
+    }
+
+    .bin.dragging {
+      opacity: 0.7;
+      cursor: grabbing;
+      z-index: 10;
+    }
+
+    .bin.selected {
+      outline: 2px solid #0078d4;
+      outline-offset: -2px;
+    }
+
+    .bin-label {
+      position: absolute;
+      inset: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 1px;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow: hidden;
+      line-height: 1.1;
+      /* font-size is set dynamically via JS */
+    }
+
+    h3 {
+      margin: 6px 0;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    textarea {
+      width: 100%;
+      padding: 4px;
+      margin-top: 2px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 50px;
+    }
+
+    label {
+      font-size: 12px;
+      display: block;
+      margin-top: 4px;
+    }
+
+    button {
+      padding: 4px 8px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .drawer-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      border: 1px solid #ccc;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .drawer-list li {
+      padding: 4px 6px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .drawer-list li:last-child {
+      border-bottom: none;
+    }
+
+    .drawer-list li.active {
+      background-color: #0078d4;
+      color: #fff;
+    }
+
+    .drawer-meta {
+      font-size: 11px;
+      color: #555;
+      margin-top: 4px;
+    }
+
+    .section {
+      margin-bottom: 12px;
+    }
+
+    .section-header {
+      font-weight: bold;
+      margin-bottom: 4px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 2px;
+    }
+
+    .holding-item {
+      padding: 4px 6px;
+      border: 1px solid #ddd;
+      margin-bottom: 4px;
+      cursor: pointer;
+    }
+
+    .holding-item.active {
+      border-color: #0078d4;
+      background-color: #e6f2ff;
+    }
+
+    .kv-row {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+
+    .kv-row input[type="text"] {
+      margin: 0;
+    }
+
+    .kv-row button {
+      padding: 2px 6px;
+      font-size: 11px;
+    }
+
+    .properties-buttons {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .small-note {
+      font-size: 11px;
+      color: #666;
+    }
+
+    .error-banner {
+      background-color: #ffe6e6;
+      color: #900;
+      padding: 4px 6px;
+      border: 1px solid #f5a3a3;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    .info-banner {
+      background-color: #e6f4ff;
+      color: #044a7f;
+      padding: 4px 6px;
+      border: 1px solid #a3c8f5;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    .color-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .color-row input[type="number"] {
+      width: 55px;
+    }
+
+    .color-row input[type="color"] {
+      width: 40px;
+      padding: 0;
+      border: none;
+      background: none;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <aside id="drawer-sidebar">
+    <div id="drawer-toggle-bar">
+      <button id="drawer-toggle-btn">&lt;</button>
+    </div>
+    <div id="drawer-sidebar-content">
+      <h3>Drawers</h3>
+      <div class="section">
+        <ul id="drawer-list" class="drawer-list"></ul>
+        <div class="drawer-meta" id="drawer-count"></div>
+        <button id="delete-drawer-btn" style="margin-top:6px;">Delete selected drawer</button>
+      </div>
+
+      <div class="section">
+        <div class="section-header">New Drawer</div>
+        <label>Drawer name
+          <input type="text" id="new-drawer-name" placeholder="e.g. 1, 2, Drawer 8 – M5 Hardware">
+        </label>
+        <label>Columns
+          <input type="number" id="new-drawer-cols" min="1" max="100" value="8">
+        </label>
+        <label>Rows
+          <input type="number" id="new-drawer-rows" min="1" max="100" value="5">
+        </label>
+        <button id="add-drawer-btn">Add Drawer</button>
+        <div class="small-note">Drawers are sorted in natural order (1, 2, 12, ...). Max size: 100x100.</div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">Import / Export</div>
+        <button id="export-json-btn">Export JSON</button>
+        <label style="margin-top:6px;">
+          Import JSON
+          <input type="file" id="import-json-input" accept="application/json" style="display:block;margin-top:4px;">
+        </label>
+        <div id="status-message" class="small-note" style="margin-top:6px;"></div>
+      </div>
+    </div>
+  </aside>
+
+  <div id="main-area">
+    <div id="grid-wrapper">
+      <div id="grid-container"></div>
+    </div>
+  </div>
+
+  <aside id="right-sidebar">
+    <div id="right-messages"></div>
+
+    <div class="section">
+      <div class="section-header">Holding Area</div>
+      <div id="holding-list"></div>
+      <div class="small-note">
+        Click a holding bin, then click an empty cell in the current drawer grid to place it.
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">Bin Properties</div>
+      <div id="bin-properties">
+        <div class="small-note">
+          Select a bin on the grid to edit its properties.
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+  // --- Data model ----
+
+  let cabinet = {
+    version: "1.0.0",
+    name: "Workbench Gridfinity Cabinet",
+    description: "",
+    lastUpdated: new Date().toISOString(),
+    units: "mm",
+    drawers: [],
+    holdingBins: []
+  };
+
+  const STORAGE_KEY = "gridfinity_cabinet_v1";
+  let currentDrawerId = null;
+  let selectedBinId = null;
+  let selectedHoldingBinId = null;
+
+  // Drag state for desktop bin dragging
+  let dragState = null; // { binId, startX, startY, isDragging, origX, origY, cellSize }
+
+  // Pan/zoom state
+  let viewScale = 1;
+  let viewTranslateX = 0; // world units (px before scaling)
+  let viewTranslateY = 0;
+  const MIN_SCALE = 0.25;
+  const MAX_SCALE = 4;
+
+  // Middle-mouse panning state (desktop)
+  let panState = null; // { startX, startY, startTranslateX, startTranslateY }
+
+  // Touch state (mobile)
+  let touchState = {
+    mode: null,         // 'tapOrPan', 'pan', 'pinch'
+    tapStartX: 0,
+    tapStartY: 0,
+    lastX: 0,
+    lastY: 0,
+    startScale: 1,
+    startDist: 0,
+    startTranslateX: 0,
+    startTranslateY: 0
+  };
+
+  const TAP_MOVE_THRESHOLD_SQ = 10 * 10; // ~10px threshold
+
+  // Natural sort collator (numeric aware)
+  const drawerCollator = new Intl.Collator(undefined, {
+    numeric: true,
+    sensitivity: "base"
+  });
+
+  function sortDrawers() {
+    cabinet.drawers.sort((a, b) => drawerCollator.compare(a.name || "", b.name || ""));
+  }
+
+  // --- Utility functions ----
+
+  function saveCabinet() {
+    cabinet.lastUpdated = new Date().toISOString();
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cabinet));
+    } catch (e) {
+      console.warn("Failed to save to localStorage:", e);
+    }
+    updateStatus("Saved");
+  }
+
+  function loadCabinet() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const obj = JSON.parse(raw);
+      if (obj && Array.isArray(obj.drawers)) {
+        cabinet = obj;
+        if (!Array.isArray(cabinet.holdingBins)) {
+          cabinet.holdingBins = [];
+        }
+        // Migration: move any per-drawer holdingBins into global holdingBins
+        cabinet.drawers.forEach(d => {
+          if (Array.isArray(d.holdingBins) && d.holdingBins.length) {
+            cabinet.holdingBins.push(...d.holdingBins);
+          }
+          delete d.holdingBins;
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to parse cabinet from storage:", e);
+    }
+  }
+
+  function getCurrentDrawer() {
+    return cabinet.drawers.find(d => d.id === currentDrawerId) || null;
+  }
+
+  function findBin(drawer, binId) {
+    return drawer.bins.find(b => b.id === binId) || null;
+  }
+
+  // Generic ID for drawers, not bins
+  function generateId(prefix) {
+    return prefix + "-" + Math.random().toString(36).slice(2, 10) + "-" + Date.now().toString(36);
+  }
+
+  // 32-character random GUID for bins (physical bin ID)
+  function generateBinGuid() {
+    const bytes = new Uint8Array(16);
+    if (window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(bytes);
+    } else {
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = Math.floor(Math.random() * 256);
+      }
+    }
+    return Array.from(bytes)
+      .map(b => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  function rgbToCss(color) {
+    if (!color) return "rgb(255,165,0)";
+    const r = clampInt(color.r, 0, 255);
+    const g = clampInt(color.g, 0, 255);
+    const b = clampInt(color.b, 0, 255);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function clampInt(v, min, max) {
+    v = parseInt(v, 10);
+    if (isNaN(v)) v = min;
+    return Math.min(max, Math.max(min, v));
+  }
+
+  function cellNotation(x, y) {
+    let col = x;
+    let label = "";
+    do {
+      let rem = col % 26;
+      label = String.fromCharCode(65 + rem) + label;
+      col = Math.floor(col / 26) - 1;
+    } while (col >= 0);
+    return label + (y + 1);
+  }
+
+  function updateStatus(msg) {
+    const el = document.getElementById("status-message");
+    if (!el) return;
+    el.textContent = msg;
+    if (msg) {
+      setTimeout(() => {
+        if (document.getElementById("status-message") &&
+            document.getElementById("status-message").textContent === msg) {
+          document.getElementById("status-message").textContent = "";
+        }
+      }, 2000);
+    }
+  }
+
+  function setRightMessage(html, type) {
+    const container = document.getElementById("right-messages");
+    container.innerHTML = "";
+    if (!html) return;
+    const div = document.createElement("div");
+    div.className = type === "error" ? "error-banner" : "info-banner";
+    div.innerHTML = html;
+    container.appendChild(div);
+  }
+
+  function rgbToHex({ r, g, b }) {
+    function toHex(n) {
+      n = clampInt(n, 0, 255);
+      return n.toString(16).padStart(2, "0");
+    }
+    return "#" + toHex(r) + toHex(g) + toHex(b);
+  }
+
+  function hexToRgb(hex) {
+    hex = hex.replace("#", "");
+    if (hex.length === 3) {
+      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    const n = parseInt(hex, 16);
+    return {
+      r: (n >> 16) & 255,
+      g: (n >> 8) & 255,
+      b: n & 255
+    };
+  }
+
+  // --- Pan/Zoom helpers ----
+
+  function applyViewTransform() {
+    const grid = document.getElementById("grid-container");
+    grid.style.transformOrigin = "0 0";
+    grid.style.transform = `translate(${viewTranslateX}px, ${viewTranslateY}px) scale(${viewScale})`;
+  }
+
+  function zoomAtPoint(screenX, screenY, scaleFactor) {
+    const wrapper = document.getElementById("grid-wrapper");
+    const rect = wrapper.getBoundingClientRect();
+    const px = screenX - rect.left;
+    const py = screenY - rect.top;
+
+    const oldScale = viewScale;
+    let newScale = oldScale * scaleFactor;
+    newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+    if (newScale === oldScale) return;
+
+    // Compute world coordinate under cursor before zoom
+    const worldX = px / oldScale - viewTranslateX;
+    const worldY = py / oldScale - viewTranslateY;
+
+    viewScale = newScale;
+    // Adjust translate so the same world point stays under the cursor
+    viewTranslateX = px / newScale - worldX;
+    viewTranslateY = py / newScale - worldY;
+
+    applyViewTransform();
+  }
+
+  function onGridWheel(e) {
+    e.preventDefault();
+    const delta = e.deltaY;
+    const factor = delta < 0 ? 1.1 : 0.9;
+    zoomAtPoint(e.clientX, e.clientY, factor);
+  }
+
+  function onGridWrapperMouseDown(e) {
+    // Middle mouse panning
+    if (e.button === 1) {
+      e.preventDefault();
+      panState = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startTranslateX: viewTranslateX,
+        startTranslateY: viewTranslateY
+      };
+      window.addEventListener("mousemove", onPanMouseMove);
+      window.addEventListener("mouseup", onPanMouseUp);
+    }
+  }
+
+  function onPanMouseMove(e) {
+    if (!panState) return;
+    const dx = e.clientX - panState.startX;
+    const dy = e.clientY - panState.startY;
+    viewTranslateX = panState.startTranslateX + dx / viewScale;
+    viewTranslateY = panState.startTranslateY + dy / viewScale;
+    applyViewTransform();
+  }
+
+  function onPanMouseUp() {
+    window.removeEventListener("mousemove", onPanMouseMove);
+    window.removeEventListener("mouseup", onPanMouseUp);
+    panState = null;
+  }
+
+  // --- Touch pinch/pan/tap ----
+
+  function distanceBetweenTouches(t1, t2) {
+    const dx = t2.clientX - t1.clientX;
+    const dy = t2.clientY - t1.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function midpointBetweenTouches(t1, t2) {
+    return {
+      x: (t1.clientX + t2.clientX) / 2,
+      y: (t1.clientY + t2.clientY) / 2
+    };
+  }
+
+  function onGridTouchStart(e) {
+    if (e.touches.length === 1) {
+      // Single-finger: could be tap or pan
+      e.preventDefault();
+      const t = e.touches[0];
+      touchState.mode = "tapOrPan";
+      touchState.tapStartX = t.clientX;
+      touchState.tapStartY = t.clientY;
+      touchState.lastX = t.clientX;
+      touchState.lastY = t.clientY;
+      touchState.startTranslateX = viewTranslateX;
+      touchState.startTranslateY = viewTranslateY;
+    } else if (e.touches.length === 2) {
+      // Two-finger pinch zoom
+      e.preventDefault();
+      const [t1, t2] = e.touches;
+      touchState.mode = "pinch";
+      touchState.startScale = viewScale;
+      touchState.startDist = distanceBetweenTouches(t1, t2);
+    } else {
+      touchState.mode = null;
+    }
+  }
+
+  function onGridTouchMove(e) {
+    if (!touchState.mode) return;
+
+    if ((touchState.mode === "tapOrPan" || touchState.mode === "pan") && e.touches.length === 1) {
+      // Decide between tap and pan based on movement
+      e.preventDefault();
+      const t = e.touches[0];
+      touchState.lastX = t.clientX;
+      touchState.lastY = t.clientY;
+      const dxTap = t.clientX - touchState.tapStartX;
+      const dyTap = t.clientY - touchState.tapStartY;
+      const distSq = dxTap * dxTap + dyTap * dyTap;
+
+      if (touchState.mode === "tapOrPan" && distSq > TAP_MOVE_THRESHOLD_SQ) {
+        touchState.mode = "pan";
+      }
+
+      if (touchState.mode === "pan") {
+        const dx = t.clientX - touchState.tapStartX;
+        const dy = t.clientY - touchState.tapStartY;
+        viewTranslateX = touchState.startTranslateX + dx / viewScale;
+        viewTranslateY = touchState.startTranslateY + dy / viewScale;
+        applyViewTransform();
+      }
+    } else if (touchState.mode === "pinch" && e.touches.length === 2) {
+      // Two-finger pinch zoom only
+      e.preventDefault();
+      const [t1, t2] = e.touches;
+      const dist = distanceBetweenTouches(t1, t2);
+      if (dist <= 0 || touchState.startDist <= 0) return;
+
+      const mid = midpointBetweenTouches(t1, t2);
+
+      let targetScale = touchState.startScale * (dist / touchState.startDist);
+      targetScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, targetScale));
+
+      const factor = targetScale / viewScale;
+      if (Math.abs(factor - 1) > 0.001) {
+        zoomAtPoint(mid.x, mid.y, factor);
+      }
+    }
+  }
+
+  function onGridTouchEnd(e) {
+    if (e.touches.length === 0) {
+      // All fingers lifted
+      if (touchState.mode === "tapOrPan") {
+        // Treat as tap
+        const x = touchState.lastX || touchState.tapStartX;
+        const y = touchState.lastY || touchState.tapStartY;
+        handleTapAt(x, y);
+      }
+      touchState.mode = null;
+    } else if (touchState.mode === "pinch" && e.touches.length === 1) {
+      // Finishing pinch, don't auto-start pan; wait for new gesture
+      touchState.mode = null;
+    }
+  }
+
+  // --- Layout / rendering ----
+
+  function renderDrawerList() {
+    const listEl = document.getElementById("drawer-list");
+    listEl.innerHTML = "";
+    const drawers = [...cabinet.drawers].sort((a, b) =>
+      drawerCollator.compare(a.name || "", b.name || "")
+    );
+    drawers.forEach(d => {
+      const li = document.createElement("li");
+      li.textContent = d.name || d.id;
+      li.dataset.drawerId = d.id;
+      if (d.id === currentDrawerId) li.classList.add("active");
+      li.addEventListener("click", () => {
+        currentDrawerId = d.id;
+        selectedBinId = null;
+        setRightMessage("", "info");
+        renderAll();
+      });
+      listEl.appendChild(li);
+    });
+    document.getElementById("drawer-count").textContent =
+      drawers.length ? `${drawers.length} drawer(s)` : "No drawers yet.";
+
+    const delBtn = document.getElementById("delete-drawer-btn");
+    if (delBtn) {
+      delBtn.disabled = !currentDrawerId;
+    }
+  }
+
+  function renderGrid() {
+    const container = document.getElementById("grid-container");
+    container.innerHTML = "";
+    const drawer = getCurrentDrawer();
+    if (!drawer) {
+      container.style.width = "0px";
+      container.style.height = "0px";
+      applyViewTransform();
+      return;
+    }
+
+    const cols = drawer.grid.columns || 1;
+    const rows = drawer.grid.rows || 1;
+    const cellSizePx = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue("--cell-size"),
+      10
+    ) || 40;
+
+    container.style.width = (cols * cellSizePx) + "px";
+    container.style.height = (rows * cellSizePx) + "px";
+
+    drawer.bins.forEach(bin => {
+      const binEl = document.createElement("div");
+      binEl.className = "bin";
+      binEl.dataset.binId = bin.id;
+      const x = bin.position.x;
+      const y = bin.position.y;
+      const w = bin.size.w;
+      const h = bin.size.h;
+      binEl.style.left = (x * cellSizePx) + "px";
+      binEl.style.top = (y * cellSizePx) + "px";
+      binEl.style.width = (w * cellSizePx) + "px";
+      binEl.style.height = (h * cellSizePx) + "px";
+      binEl.style.backgroundColor = rgbToCss(bin.color);
+
+      const labelEl = document.createElement("div");
+      labelEl.className = "bin-label";
+      labelEl.textContent = bin.label || `${w}x${h}`;
+      binEl.appendChild(labelEl);
+
+      if (bin.id === selectedBinId) {
+        binEl.classList.add("selected");
+      }
+
+      binEl.addEventListener("mousedown", onBinMouseDown);
+      container.appendChild(binEl);
+    });
+
+    // After all bins are added, fit labels
+    fitAllBinLabels();
+
+    applyViewTransform();
+  }
+
+  function fitAllBinLabels() {
+    const bins = document.querySelectorAll(".bin");
+    bins.forEach(binEl => {
+      const labelEl = binEl.querySelector(".bin-label");
+      if (!labelEl) return;
+      const w = binEl.clientWidth;
+      const h = binEl.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      fitLabelToBox(labelEl, w, h);
+    });
+  }
+
+  function fitLabelToBox(labelEl, boxWidth, boxHeight) {
+    // Start from a reasonably large size based on the smaller dimension
+    let fontSize = Math.floor(Math.min(boxHeight * 0.6, boxWidth * 0.25));
+    if (fontSize < 6) fontSize = 6;
+    const minFont = 6;
+
+    // Set to large first to measure, then shrink until it fits
+    labelEl.style.fontSize = fontSize + "px";
+
+    const maxIterations = 40;
+    let iter = 0;
+
+    while (iter < maxIterations && fontSize > minFont) {
+      const sw = labelEl.scrollWidth;
+      const sh = labelEl.scrollHeight;
+
+      // Leave a small margin
+      const fits = sw <= boxWidth - 4 && sh <= boxHeight - 4;
+      if (fits) break;
+
+      fontSize -= 1;
+      labelEl.style.fontSize = fontSize + "px";
+      iter++;
+    }
+
+    // If label is very short, we can try to grow a bit (but not exceed box height)
+    const growMax = Math.floor(boxHeight * 0.8);
+    while (fontSize < growMax) {
+      labelEl.style.fontSize = (fontSize + 1) + "px";
+      const sw = labelEl.scrollWidth;
+      const sh = labelEl.scrollHeight;
+      if (sw > boxWidth - 4 || sh > boxHeight - 4) {
+        // Too big, revert and stop
+        labelEl.style.fontSize = fontSize + "px";
+        break;
+      }
+      fontSize += 1;
+    }
+  }
+
+  function renderHoldingArea() {
+    const holder = document.getElementById("holding-list");
+    holder.innerHTML = "";
+
+    if (!Array.isArray(cabinet.holdingBins) || cabinet.holdingBins.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "small-note";
+      empty.textContent = "No bins in holding area.";
+      holder.appendChild(empty);
+      return;
+    }
+
+    cabinet.holdingBins.forEach(bin => {
+      const div = document.createElement("div");
+      div.className = "holding-item";
+      if (bin.id === selectedHoldingBinId) div.classList.add("active");
+      const sizeText = `${bin.size.w}x${bin.size.h}`;
+      const labelText = bin.label ? ` – ${bin.label}` : "";
+      div.textContent = sizeText + labelText;
+      div.addEventListener("click", () => {
+        selectedHoldingBinId = bin.id;
+        renderHoldingArea();
+        setRightMessage(`Holding bin selected: ${sizeText}${labelText}`, "info");
+      });
+      holder.appendChild(div);
+    });
+  }
+
+  function renderBinProperties() {
+    const container = document.getElementById("bin-properties");
+    container.innerHTML = "";
+    const drawer = getCurrentDrawer();
+    if (!drawer) {
+      container.innerHTML = '<div class="small-note">Create a drawer to begin.</div>';
+      return;
+    }
+    if (!selectedBinId) {
+      container.innerHTML = '<div class="small-note">Select a bin on the grid to edit its properties.</div>';
+      return;
+    }
+
+    const bin = findBin(drawer, selectedBinId);
+    if (!bin) {
+      container.innerHTML = '<div class="small-note">Selected bin not found.</div>';
+      return;
+    }
+
+    if (!bin.attributes) bin.attributes = {};
+    if (!bin.contents) bin.contents = {};
+    if (!bin.color) bin.color = { r: 255, g: 165, b: 0 };
+
+    const cellText = cellNotation(bin.position.x, bin.position.y);
+    const sizeText = `${bin.size.w}x${bin.size.h}`;
+
+    const form = document.createElement("div");
+
+    const idLabel = document.createElement("div");
+    idLabel.className = "small-note";
+    idLabel.textContent = `ID (32-char GUID): ${bin.id}`;
+    form.appendChild(idLabel);
+
+    const locLabel = document.createElement("div");
+    locLabel.className = "small-note";
+    locLabel.textContent = `Cell: ${cellText}, Size: ${sizeText}`;
+    form.appendChild(locLabel);
+
+    const labelField = document.createElement("div");
+    labelField.innerHTML = `
+      <label>Label
+        <input type="text" id="prop-label" value="${bin.label || ""}">
+      </label>
+    `;
+    form.appendChild(labelField);
+
+    const summaryField = document.createElement("div");
+    summaryField.innerHTML = `
+      <label>Summary
+        <input type="text" id="prop-summary" value="${bin.summary || ""}">
+      </label>
+    `;
+    form.appendChild(summaryField);
+
+    const posSizeWrapper = document.createElement("div");
+    posSizeWrapper.innerHTML = `
+      <label>Position X (column index, 0-based)
+        <input type="number" id="prop-pos-x" value="${bin.position.x}">
+      </label>
+      <label>Position Y (row index, 0-based)
+        <input type="number" id="prop-pos-y" value="${bin.position.y}">
+      </label>
+      <label>Width (cells)
+        <input type="number" id="prop-size-w" value="${bin.size.w}">
+      </label>
+      <label>Height (cells)
+        <input type="number" id="prop-size-h" value="${bin.size.h}">
+      </label>
+    `;
+    form.appendChild(posSizeWrapper);
+
+    const catTags = document.createElement("div");
+    const tagsStr = (bin.tags || []).join(", ");
+    catTags.innerHTML = `
+      <label>Category
+        <input type="text" id="prop-category" value="${bin.category || ""}">
+      </label>
+      <label>Tags (comma-separated)
+        <input type="text" id="prop-tags" value="${tagsStr}">
+      </label>
+    `;
+    form.appendChild(catTags);
+
+    const colorEl = document.createElement("div");
+    const rgb = bin.color || { r: 255, g: 165, b: 0 };
+    colorEl.innerHTML = `
+      <label>Color</label>
+      <div class="color-row">
+        <input type="color" id="prop-color-picker">
+        <input type="number" id="prop-color-r" min="0" max="255" value="${rgb.r}">
+        <input type="number" id="prop-color-g" min="0" max="255" value="${rgb.g}">
+        <input type="number" id="prop-color-b" min="0" max="255" value="${rgb.b}">
+      </div>
+    `;
+    form.appendChild(colorEl);
+
+    const contentsEl = document.createElement("div");
+    contentsEl.innerHTML = `
+      <label>Contents (JSON object)
+        <textarea id="prop-contents">${JSON.stringify(bin.contents, null, 2)}</textarea>
+      </label>
+    `;
+    form.appendChild(contentsEl);
+
+    const notesEl = document.createElement("div");
+    notesEl.innerHTML = `
+      <label>Notes
+        <textarea id="prop-notes">${bin.notes || ""}</textarea>
+      </label>
+    `;
+    form.appendChild(notesEl);
+
+    const attrsHeader = document.createElement("div");
+    attrsHeader.textContent = "Custom attributes";
+    attrsHeader.style.fontWeight = "bold";
+    attrsHeader.style.marginTop = "6px";
+    form.appendChild(attrsHeader);
+
+    const attrsContainer = document.createElement("div");
+    attrsContainer.id = "prop-attributes-container";
+    form.appendChild(attrsContainer);
+
+    const addAttrBtn = document.createElement("button");
+    addAttrBtn.textContent = "Add attribute";
+    addAttrBtn.type = "button";
+    addAttrBtn.style.marginTop = "4px";
+    addAttrBtn.addEventListener("click", () => {
+      addAttributeRow(attrsContainer, "", "");
+    });
+    form.appendChild(addAttrBtn);
+
+    const btnRow = document.createElement("div");
+    btnRow.className = "properties-buttons";
+    const saveBtn = document.createElement("button");
+    saveBtn.textContent = "Save";
+    saveBtn.type = "button";
+    saveBtn.addEventListener("click", () => saveBinFromProperties(bin));
+    const deleteBtn = document.createElement("button");
+    deleteBtn.textContent = "Delete";
+    deleteBtn.type = "button";
+    deleteBtn.style.backgroundColor = "#f44336";
+    deleteBtn.style.color = "#fff";
+    deleteBtn.addEventListener("click", () => deleteBinById(bin.id));
+    const duplicateBtn = document.createElement("button");
+    duplicateBtn.textContent = "Duplicate to holding";
+    duplicateBtn.type = "button";
+    duplicateBtn.addEventListener("click", () => duplicateBinToHolding(bin));
+    const moveToHoldingBtn = document.createElement("button");
+    moveToHoldingBtn.textContent = "Move to holding";
+    moveToHoldingBtn.type = "button";
+    moveToHoldingBtn.addEventListener("click", () => moveBinToHolding(bin));
+
+    btnRow.appendChild(saveBtn);
+    btnRow.appendChild(duplicateBtn);
+    btnRow.appendChild(moveToHoldingBtn);
+    btnRow.appendChild(deleteBtn);
+
+    form.appendChild(btnRow);
+
+    container.appendChild(form);
+
+    Object.entries(bin.attributes || {}).forEach(([key, value]) => {
+      addAttributeRow(attrsContainer, key, String(value));
+    });
+
+    const colorPicker = form.querySelector("#prop-color-picker");
+    colorPicker.value = rgbToHex(rgb);
+
+    const rInput = form.querySelector("#prop-color-r");
+    const gInput = form.querySelector("#prop-color-g");
+    const bInput = form.querySelector("#prop-color-b");
+
+    colorPicker.addEventListener("input", () => {
+      const { r, g, b } = hexToRgb(colorPicker.value);
+      rInput.value = r;
+      gInput.value = g;
+      bInput.value = b;
+    });
+
+    [rInput, gInput, bInput].forEach(input => {
+      input.addEventListener("input", () => {
+        const r = clampInt(rInput.value, 0, 255);
+        const g = clampInt(gInput.value, 0, 255);
+        const b = clampInt(bInput.value, 0, 255);
+        colorPicker.value = rgbToHex({ r, g, b });
+      });
+    });
+  }
+
+  function addAttributeRow(container, key, value) {
+    const row = document.createElement("div");
+    row.className = "kv-row";
+    const keyInput = document.createElement("input");
+    keyInput.type = "text";
+    keyInput.placeholder = "key";
+    keyInput.value = key;
+    const valInput = document.createElement("input");
+    valInput.type = "text";
+    valInput.placeholder = "value";
+    valInput.value = value;
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.textContent = "X";
+    delBtn.addEventListener("click", () => {
+      container.removeChild(row);
+    });
+    row.appendChild(keyInput);
+    row.appendChild(valInput);
+    row.appendChild(delBtn);
+    container.appendChild(row);
+  }
+
+  function renderAll() {
+    renderDrawerList();
+    renderGrid();
+    renderHoldingArea();
+    renderBinProperties();
+  }
+
+  // --- Bin properties actions ----
+
+  function saveBinFromProperties(bin) {
+    const drawer = getCurrentDrawer();
+    if (!drawer) return;
+
+    const label = document.getElementById("prop-label").value.trim();
+    const summary = document.getElementById("prop-summary").value.trim();
+    const posX = parseInt(document.getElementById("prop-pos-x").value, 10);
+    const posY = parseInt(document.getElementById("prop-pos-y").value, 10);
+    const sizeW = parseInt(document.getElementById("prop-size-w").value, 10);
+    const sizeH = parseInt(document.getElementById("prop-size-h").value, 10);
+    const category = document.getElementById("prop-category").value.trim();
+    const tagsStr = document.getElementById("prop-tags").value.trim();
+    const contentsStr = document.getElementById("prop-contents").value;
+    const notes = document.getElementById("prop-notes").value;
+
+    const r = clampInt(document.getElementById("prop-color-r").value, 0, 255);
+    const g = clampInt(document.getElementById("prop-color-g").value, 0, 255);
+    const b = clampInt(document.getElementById("prop-color-b").value, 0, 255);
+
+    if (sizeW < 1 || sizeH < 1) {
+      setRightMessage("Width and height must be at least 1 cell.", "error");
+      return;
+    }
+
+    const cols = drawer.grid.columns;
+    const rows = drawer.grid.rows;
+    if (posX < 0 || posY < 0 || posX + sizeW > cols || posY + sizeH > rows) {
+      setRightMessage("Bin position/size is out of drawer bounds.", "error");
+      return;
+    }
+
+    const candidate = {
+      position: { x: posX, y: posY },
+      size: { w: sizeW, h: sizeH }
+    };
+    const overlapping = drawer.bins.some(other => {
+      if (other.id === bin.id) return false;
+      return binsOverlap(other, candidate);
+    });
+    if (overlapping) {
+      setRightMessage("Updated bin would overlap another bin.", "error");
+      return;
+    }
+
+    let contentsObj = {};
+    try {
+      contentsObj = JSON.parse(contentsStr || "{}");
+      if (typeof contentsObj !== "object" || contentsObj === null || Array.isArray(contentsObj)) {
+        throw new Error("Contents must be a JSON object.");
+      }
+    } catch (e) {
+      setRightMessage("Contents JSON is invalid: " + e.message, "error");
+      return;
+    }
+
+    const attrsContainer = document.getElementById("prop-attributes-container");
+    const attrRows = attrsContainer.querySelectorAll(".kv-row");
+    const attrs = {};
+    attrRows.forEach(row => {
+      const inputs = row.querySelectorAll("input[type='text']");
+      if (inputs.length >= 2) {
+        const key = inputs[0].value.trim();
+        const val = inputs[1].value.trim();
+        if (key) {
+          attrs[key] = val;
+        }
+      }
+    });
+
+    bin.label = label;
+    bin.summary = summary;
+    bin.position.x = posX;
+    bin.position.y = posY;
+    bin.size.w = sizeW;
+    bin.size.h = sizeH;
+    bin.category = category;
+    bin.tags = tagsStr ? tagsStr.split(",").map(s => s.trim()).filter(Boolean) : [];
+    bin.contents = contentsObj;
+    bin.notes = notes;
+    bin.color = { r, g, b };
+    bin.attributes = attrs;
+
+    saveCabinet();
+    setRightMessage("Bin updated.", "info");
+    renderAll();
+  }
+
+  // Delete bin by ID (fixed version)
+  function deleteBinById(binId) {
+    const drawer = getCurrentDrawer();
+    if (!drawer) return;
+
+    const bin = drawer.bins.find(b => b.id === binId);
+    const name = bin ? (bin.label || bin.id) : binId;
+
+    if (!confirm(`Delete bin "${name}"?`)) return;
+
+    drawer.bins = drawer.bins.filter(b => b.id !== binId);
+    if (selectedBinId === binId) selectedBinId = null;
+
+    saveCabinet();
+    setRightMessage("Bin deleted.", "info");
+    renderAll();
+  }
+
+  function duplicateBinToHolding(bin) {
+    if (!Array.isArray(cabinet.holdingBins)) cabinet.holdingBins = [];
+    const clone = JSON.parse(JSON.stringify(bin));
+    clone.id = generateBinGuid();
+    cabinet.holdingBins.push(clone);
+    saveCabinet();
+    setRightMessage("Bin duplicated to holding area.", "info");
+    renderHoldingArea();
+  }
+
+  function moveBinToHolding(bin) {
+    const drawer = getCurrentDrawer();
+    if (!drawer) return;
+    if (!Array.isArray(cabinet.holdingBins)) cabinet.holdingBins = [];
+    drawer.bins = drawer.bins.filter(b => b.id !== bin.id);
+    cabinet.holdingBins.push(bin);
+    if (selectedBinId === bin.id) selectedBinId = null;
+    saveCabinet();
+    setRightMessage("Bin moved to holding area.", "info");
+    renderAll();
+  }
+
+  // --- Bin overlap / placement ----
+
+  function binsOverlap(binA, binB) {
+    const ax1 = binA.position.x;
+    const ay1 = binA.position.y;
+    const ax2 = ax1 + binA.size.w;
+    const ay2 = ay1 + binA.size.h;
+
+    const bx1 = binB.position.x;
+    const by1 = binB.position.y;
+    const bx2 = bx1 + binB.size.w;
+    const by2 = by1 + binB.size.h;
+
+    if (ax2 <= bx1) return false;
+    if (bx2 <= ax1) return false;
+    if (ay2 <= by1) return false;
+    if (by2 <= ay1) return false;
+    return true;
+  }
+
+  function cellIsOccupied(drawer, x, y) {
+    return drawer.bins.some(bin => {
+      const withinX = x >= bin.position.x && x < bin.position.x + bin.size.w;
+      const withinY = y >= bin.position.y && y < bin.position.y + bin.size.h;
+      return withinX && withinY;
+    });
+  }
+
+  // --- Grid primary action helper (used by mouse and touch taps) ----
+
+  function handleGridPrimaryActionAt(clientX, clientY, explicitTarget) {
+    const drawer = getCurrentDrawer();
+    if (!drawer) return;
+
+    const container = document.getElementById("grid-container");
+    const rect = container.getBoundingClientRect();
+    const cellSizePx = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue("--cell-size"),
+      10
+    ) || 40;
+
+    const localX = (clientX - rect.left) / viewScale;
+    const localY = (clientY - rect.top) / viewScale;
+    const x = Math.floor(localX / cellSizePx);
+    const y = Math.floor(localY / cellSizePx);
+
+    if (x < 0 || y < 0 || x >= drawer.grid.columns || y >= drawer.grid.rows) {
+      return;
+    }
+
+    // If a holding bin is selected, attempt placement first
+    if (selectedHoldingBinId) {
+      attemptPlaceHoldingBinAt(drawer, selectedHoldingBinId, x, y);
+      return;
+    }
+
+    // See if the tap/click hit a bin (by element)
+    let target = explicitTarget || document.elementFromPoint(clientX, clientY);
+    if (target && !target.classList.contains("bin")) {
+      target = target.closest(".bin");
+    }
+    if (target && target.classList && target.classList.contains("bin")) {
+      const binId = target.dataset.binId;
+      if (binId) {
+        selectedBinId = binId;
+        selectedHoldingBinId = null;
+        setRightMessage("", "info");
+        renderAll();
+      }
+      return;
+    }
+
+    // Fallback: check occupancy by coordinates
+    if (cellIsOccupied(drawer, x, y)) {
+      const bin = drawer.bins.find(b =>
+        x >= b.position.x &&
+        x < b.position.x + b.size.w &&
+        y >= b.position.y &&
+        y < b.position.y + b.size.h
+      );
+      if (bin) {
+        selectedBinId = bin.id;
+        selectedHoldingBinId = null;
+        renderAll();
+      }
+      return;
+    }
+
+    // Empty cell: create new bin
+    createNewBinAt(drawer, x, y);
+  }
+
+  function handleTapAt(clientX, clientY) {
+    handleGridPrimaryActionAt(clientX, clientY, null);
+  }
+
+  // --- Grid interactions (mouse) ----
+
+  function onGridMouseDown(e) {
+    const drawer = getCurrentDrawer();
+    if (!drawer) return;
+    if (e.button !== 0) return; // left click only
+    e.preventDefault();
+    handleGridPrimaryActionAt(e.clientX, e.clientY, e.target);
+  }
+
+  function createNewBinAt(drawer, x, y) {
+    const sizeStr = prompt(
+      `Create new bin at ${cellNotation(x, y)}. Enter size as "width,height" (in cells):`,
+      "1,1"
+    );
+    if (!sizeStr) return;
+    const parts = sizeStr.split(",");
+    if (parts.length !== 2) {
+      setRightMessage('Invalid size format. Use width,height (e.g. 2,1).', "error");
+      return;
+    }
+    const w = parseInt(parts[0].trim(), 10);
+    const h = parseInt(parts[1].trim(), 10);
+    if (isNaN(w) || isNaN(h) || w < 1 || h < 1) {
+      setRightMessage("Width and height must be positive integers.", "error");
+      return;
+    }
+
+    if (x + w > drawer.grid.columns || y + h > drawer.grid.rows) {
+      setRightMessage("Bin would extend beyond drawer bounds.", "error");
+      return;
+    }
+
+    const candidate = {
+      position: { x, y },
+      size: { w, h }
+    };
+    const overlapping = drawer.bins.some(b => binsOverlap(b, candidate));
+    if (overlapping) {
+      setRightMessage("Bin would overlap an existing bin.", "error");
+      return;
+    }
+
+    const label = prompt("Enter label for new bin (optional):", "") || "";
+
+    const newBin = {
+      id: generateBinGuid(),
+      label,
+      summary: "",
+      position: { x, y },
+      size: { w, h },
+      orientation: 0,
+      category: "",
+      tags: [],
+      color: { r: 255, g: 165, b: 0 },
+      contents: {},
+      notes: "",
+      attributes: {}
+    };
+    drawer.bins.push(newBin);
+    selectedBinId = newBin.id;
+    saveCabinet();
+    setRightMessage("New bin created.", "info");
+    renderAll();
+  }
+
+  function attemptPlaceHoldingBinAt(drawer, holdingId, x, y) {
+    if (!Array.isArray(cabinet.holdingBins)) cabinet.holdingBins = [];
+    const holdingBinIndex = cabinet.holdingBins.findIndex(b => b.id === holdingId);
+    if (holdingBinIndex === -1) {
+      setRightMessage("Selected holding bin not found.", "error");
+      return;
+    }
+    const holdingBin = cabinet.holdingBins[holdingBinIndex];
+
+    const w = holdingBin.size.w;
+    const h = holdingBin.size.h;
+
+    if (x + w > drawer.grid.columns || y + h > drawer.grid.rows) {
+      setRightMessage("Holding bin would extend beyond drawer bounds.", "error");
+      return;
+    }
+
+    const candidate = {
+      position: { x, y },
+      size: { w, h }
+    };
+
+    const overlapping = drawer.bins.some(b => binsOverlap(b, candidate));
+    if (overlapping) {
+      setRightMessage("Holding bin would overlap an existing bin.", "error");
+      return;
+    }
+
+    holdingBin.position = { x, y };
+    drawer.bins.push(holdingBin);
+    cabinet.holdingBins.splice(holdingBinIndex, 1);
+    selectedHoldingBinId = null;
+    selectedBinId = holdingBin.id;
+    saveCabinet();
+    setRightMessage("Holding bin placed onto grid.", "info");
+    renderAll();
+  }
+
+  function onBinMouseDown(e) {
+    if (e.button !== 0) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const binEl = e.currentTarget;
+    const binId = binEl.dataset.binId;
+    const drawer = getCurrentDrawer();
+    if (!drawer) return;
+    const bin = findBin(drawer, binId);
+    if (!bin) return;
+
+    const cellSizePx = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue("--cell-size"),
+      10
+    ) || 40;
+
+    dragState = {
+      binId,
+      startX: e.clientX,
+      startY: e.clientY,
+      isDragging: false,
+      origX: bin.position.x,
+      origY: bin.position.y,
+      cellSize: cellSizePx
+    };
+
+    window.addEventListener("mousemove", onBinMouseMove);
+    window.addEventListener("mouseup", onBinMouseUp);
+  }
+
+  function onBinMouseMove(e) {
+    if (!dragState) return;
+    const drawer = getCurrentDrawer();
+    if (!drawer) return;
+
+    const dx = e.clientX - dragState.startX;
+    const dy = e.clientY - dragState.startY;
+    const distSq = dx * dx + dy * dy;
+
+    const binEl = [...document.querySelectorAll(".bin")].find(el => el.dataset.binId === dragState.binId);
+    if (!binEl) return;
+
+    if (!dragState.isDragging) {
+      if (distSq > 9) {
+        dragState.isDragging = true;
+        binEl.classList.add("dragging");
+      } else {
+        return;
+      }
+    }
+
+    const cellSizePx = dragState.cellSize;
+    const startLeft = dragState.origX * cellSizePx;
+    const startTop = dragState.origY * cellSizePx;
+    const newLeft = startLeft + (dx / viewScale);
+    const newTop = startTop + (dy / viewScale);
+    binEl.style.left = newLeft + "px";
+    binEl.style.top = newTop + "px";
+  }
+
+  function onBinMouseUp(e) {
+    window.removeEventListener("mousemove", onBinMouseMove);
+    window.removeEventListener("mouseup", onBinMouseUp);
+
+    if (!dragState) return;
+    const drawer = getCurrentDrawer();
+    if (!drawer) {
+      dragState = null;
+      return;
+    }
+
+    const bin = findBin(drawer, dragState.binId);
+    const binEl = [...document.querySelectorAll(".bin")].find(el => el.dataset.binId === dragState.binId);
+
+    if (binEl) {
+      binEl.classList.remove("dragging");
+    }
+
+    const wasDragging = dragState.isDragging;
+    const grid = document.getElementById("grid-container");
+    const rect = grid.getBoundingClientRect();
+    const cellSizePx = dragState.cellSize;
+
+    if (!wasDragging) {
+      selectedBinId = dragState.binId;
+      dragState = null;
+      renderAll();
+      return;
+    }
+
+    const localX = (e.clientX - rect.left) / viewScale;
+    const localY = (e.clientY - rect.top) / viewScale;
+    const x = Math.floor(localX / cellSizePx);
+    const y = Math.floor(localY / cellSizePx);
+
+    dragState = null;
+
+    if (x < 0 || y < 0 || x >= drawer.grid.columns || y >= drawer.grid.rows) {
+      setRightMessage("Cannot drop bin outside the drawer grid.", "error");
+      renderGrid();
+      return;
+    }
+
+    const candidate = {
+      position: { x, y },
+      size: { w: bin.size.w, h: bin.size.h }
+    };
+
+    if (x + bin.size.w > drawer.grid.columns || y + bin.size.h > drawer.grid.rows) {
+      setRightMessage("Bin would extend beyond drawer bounds.", "error");
+      renderGrid();
+      return;
+    }
+
+    const overlapping = drawer.bins.some(other => {
+      if (other.id === bin.id) return false;
+      return binsOverlap(other, candidate);
+    });
+
+    if (overlapping) {
+      setRightMessage("Bin would overlap another bin at that location.", "error");
+      renderGrid();
+      return;
+    }
+
+    bin.position.x = x;
+    bin.position.y = y;
+    selectedBinId = bin.id;
+    saveCabinet();
+    setRightMessage("Bin moved.", "info");
+    renderAll();
+  }
+
+  // --- Drawer creation/deletion ----
+
+  function setupDrawerCreation() {
+    const btn = document.getElementById("add-drawer-btn");
+    btn.addEventListener("click", () => {
+      const nameInput = document.getElementById("new-drawer-name");
+      const colsInput = document.getElementById("new-drawer-cols");
+      const rowsInput = document.getElementById("new-drawer-rows");
+
+      const name = nameInput.value.trim();
+      let cols = parseInt(colsInput.value, 10);
+      let rows = parseInt(rowsInput.value, 10);
+
+      if (!name) {
+        alert("Drawer name is required.");
+        return;
+      }
+      if (isNaN(cols) || cols < 1) cols = 1;
+      if (isNaN(rows) || rows < 1) rows = 1;
+
+      cols = Math.min(cols, 100);
+      rows = Math.min(rows, 100);
+
+      const drawer = {
+        id: generateId("drawer"),
+        name,
+        description: "",
+        grid: {
+          columns: cols,
+          rows: rows,
+          cellSize: { x: 42.0, y: 42.0, units: "mm" },
+          origin: "front-left",
+          axes: { x: "left-to-right", y: "front-to-back" }
+        },
+        category: "",
+        tags: [],
+        attributes: {},
+        bins: []
+      };
+
+      cabinet.drawers.push(drawer);
+      sortDrawers();
+      currentDrawerId = drawer.id;
+      selectedBinId = null;
+      selectedHoldingBinId = null;
+      saveCabinet();
+      nameInput.value = "";
+      renderAll();
+    });
+  }
+
+  function setupDrawerDeletion() {
+    const btn = document.getElementById("delete-drawer-btn");
+    btn.addEventListener("click", () => {
+      const drawer = getCurrentDrawer();
+      if (!drawer) {
+        alert("No drawer is selected.");
+        return;
+      }
+      const name = drawer.name || drawer.id;
+      if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+
+      cabinet.drawers = cabinet.drawers.filter(d => d.id !== drawer.id);
+      if (cabinet.drawers.length > 0) {
+        sortDrawers();
+        currentDrawerId = cabinet.drawers[0].id;
+      } else {
+        currentDrawerId = null;
+      }
+      selectedBinId = null;
+      selectedHoldingBinId = null;
+      saveCabinet();
+      setRightMessage(`Drawer "${name}" deleted.`, "info");
+      renderAll();
+    });
+  }
+
+  // --- Export / Import ----
+
+  function setupExportImport() {
+    document.getElementById("export-json-btn").addEventListener("click", () => {
+      const json = JSON.stringify(cabinet, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "gridfinity-cabinet.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      updateStatus("Exported JSON");
+    });
+
+    document.getElementById("import-json-input").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const obj = JSON.parse(reader.result);
+          if (!obj || !Array.isArray(obj.drawers)) {
+            alert("Invalid JSON format: missing 'drawers' array.");
+            return;
+          }
+          cabinet = obj;
+          if (!Array.isArray(cabinet.holdingBins)) {
+            cabinet.holdingBins = [];
+          }
+          // Migration: fold any per-drawer holdingBins into global holdingBins
+          cabinet.drawers.forEach(d => {
+            if (Array.isArray(d.holdingBins) && d.holdingBins.length) {
+              cabinet.holdingBins.push(...d.holdingBins);
+            }
+            delete d.holdingBins;
+
+            if (d.grid) {
+              d.grid.columns = Math.min(100, d.grid.columns || 1);
+              d.grid.rows = Math.min(100, d.grid.rows || 1);
+            }
+          });
+
+          if (cabinet.drawers.length > 0) {
+            sortDrawers();
+            currentDrawerId = cabinet.drawers[0].id;
+          } else {
+            currentDrawerId = null;
+          }
+          selectedBinId = null;
+          selectedHoldingBinId = null;
+          saveCabinet();
+          renderAll();
+          updateStatus("Imported JSON");
+        } catch (err) {
+          alert("Failed to parse JSON: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  // --- Drawer sidebar toggle ----
+
+  function setupDrawerToggle() {
+    const sidebar = document.getElementById("drawer-sidebar");
+    const toggleBtn = document.getElementById("drawer-toggle-btn");
+    toggleBtn.addEventListener("click", () => {
+      const collapsed = sidebar.classList.toggle("collapsed");
+      toggleBtn.textContent = collapsed ? ">" : "<";
+    });
+  }
+
+  // --- Init ----
+
+  function init() {
+    loadCabinet();
+    if (cabinet.drawers.length > 0) {
+      sortDrawers();
+      currentDrawerId = cabinet.drawers[0].id;
+    } else {
+      currentDrawerId = null;
+    }
+    setupDrawerCreation();
+    setupDrawerDeletion();
+    setupExportImport();
+    setupDrawerToggle();
+
+    // Grid interactions (desktop)
+    const gridContainer = document.getElementById("grid-container");
+    gridContainer.addEventListener("mousedown", onGridMouseDown);
+
+    const gridWrapper = document.getElementById("grid-wrapper");
+    gridWrapper.addEventListener("wheel", onGridWheel, { passive: false });
+    gridWrapper.addEventListener("mousedown", onGridWrapperMouseDown);
+
+    // Grid interactions (touch)
+    gridWrapper.addEventListener("touchstart", onGridTouchStart, { passive: false });
+    gridWrapper.addEventListener("touchmove", onGridTouchMove, { passive: false });
+    gridWrapper.addEventListener("touchend", onGridTouchEnd);
+    gridWrapper.addEventListener("touchcancel", onGridTouchEnd);
+
+    renderAll();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
